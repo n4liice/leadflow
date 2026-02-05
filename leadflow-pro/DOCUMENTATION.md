@@ -1,8 +1,9 @@
 # LeadFlow Pro - Documentação Técnica Mestre
 
-> **Versão:** 1.0.0
-> **Última Atualização:** Fevereiro 2026
+> **Versão:** 2.0.0
+> **Última Atualização:** 05 de Fevereiro de 2026
 > **Arquitetura:** Feature-Based com Hooks Layer
+> **Projeto Supabase:** Vista Tech. (nrlnukkkrgtcnrsozbea)
 
 ---
 
@@ -39,8 +40,49 @@
 | **Captadores** | Gerenciamento de instâncias WhatsApp |
 | **Campanhas** | Criação e execução de disparos em massa |
 | **Monitor** | Acompanhamento em tempo real dos envios |
-| **Pipeline** | Kanban para gestão do funil de vendas |
+| **Pipeline** | Kanban para gestão do funil de vendas com busca por telefone |
 | **Templates** | Editor de mensagens com spintext |
+
+### Pipeline - Funcionalidades Detalhadas
+
+O módulo Pipeline oferece uma interface Kanban completa para gestão de leads qualificados:
+
+**Estágios do Funil:**
+| Estágio | Cor | Descrição |
+|---------|-----|-----------|
+| Perdido | Cinza | Proprietários sem imóvel à venda |
+| Acompanhamento | Amarelo | Precisa contato posterior |
+| Indicação | Azul | Sem imóvel mas com indicação |
+| Qualificado | Verde | Com imóvel à venda |
+| Coleta de Dados | Roxo | Coletando informações |
+| Captação Formalizada | Esmeralda | Dados no cadastro |
+| Agendamentos | Laranja | Agendamentos de fotos/visitas |
+
+**Busca por Telefone (Normalizada):**
+
+O Pipeline possui busca inteligente que normaliza telefones para encontrar leads independente do formato:
+
+```typescript
+// Função de normalização - remove todos os caracteres não numéricos
+const normalizePhone = (phone: string): string => {
+  return phone.replace(/\D/g, "");
+};
+
+// Exemplos de busca que encontram o mesmo lead:
+// - "5511947081611"
+// - "(11) 94708-1611"
+// - "11 94708-1611"
+// - "947081611"
+```
+
+A busca também funciona por nome do lead, permitindo encontrar cards rapidamente em qualquer estágio do pipeline.
+
+**Funcionalidades:**
+- Drag-and-drop para mover cards entre estágios
+- Busca por telefone ou nome (normalização automática)
+- Contador de cards filtrados por estágio
+- Observações por card
+- Histórico de movimentações
 
 ---
 
@@ -318,149 +360,463 @@ async function generateSignature(payload: string, secret: string): Promise<strin
 
 ## 6. Persistência com Supabase
 
+> **Projeto Supabase:** Vista Tech. (`nrlnukkkrgtcnrsozbea`)
+> **Região:** East US (Ohio)
+> **Última sincronização do schema:** Fevereiro 2026
+
 ### Schema do Banco de Dados
 
 #### Tabela: `leadflow_usuarios`
-| Coluna | Tipo | Nullable | Descrição |
-|--------|------|----------|-----------|
-| `id` | uuid | NOT NULL | PK, auto-gerado |
-| `user_id` | uuid | NULL | ID Supabase Auth (não usado) |
-| `nome` | text | NOT NULL | Nome completo |
-| `email` | text | NOT NULL | Email único |
-| `senha` | text | NULL | Hash da senha |
-| `role` | enum | NOT NULL | `admin` \| `captador` |
-| `ativo` | boolean | NOT NULL | Status da conta |
-| `created_at` | timestamptz | NOT NULL | Criação |
-| `updated_at` | timestamptz | NOT NULL | Última atualização |
+Gerencia usuários do sistema com autenticação customizada.
+
+| Coluna | Tipo | Nullable | Default | Descrição |
+|--------|------|----------|---------|-----------|
+| `id` | uuid | NOT NULL | `gen_random_uuid()` | PK, auto-gerado |
+| `user_id` | uuid | NULL | - | ID Supabase Auth (reservado) |
+| `nome` | text | NOT NULL | - | Nome completo |
+| `email` | text | NOT NULL | - | Email único (UNIQUE) |
+| `senha` | text | NULL | - | Senha do usuário |
+| `role` | text | NOT NULL | `'captador'` | `admin` \| `captador` (CHECK constraint) |
+| `ativo` | boolean | NULL | `true` | Status da conta |
+| `created_at` | timestamptz | NULL | `now()` | Criação |
+| `updated_at` | timestamptz | NULL | `now()` | Última atualização |
+
+**Índices:**
+- `leadflow_usuarios_pkey` - PRIMARY KEY (id)
+- `leadflow_usuarios_email_key` - UNIQUE (email)
+- `idx_usuarios_email` - INDEX (email)
+- `idx_usuarios_user_id` - INDEX (user_id)
+
+---
 
 #### Tabela: `leadflow_leads`
-| Coluna | Tipo | Nullable | Descrição |
-|--------|------|----------|-----------|
-| `id` | uuid | NOT NULL | PK |
-| `nome` | text | NOT NULL | Nome do lead |
-| `telefone` | text | NOT NULL | Número WhatsApp |
-| `condominio` | text | NULL | Nome do empreendimento |
-| `origem` | text | NULL | Fonte do lead |
-| `status_telefone` | text | NULL | Resultado da validação |
-| `status_validacao` | enum | NOT NULL | `pendente` \| `validado` \| `invalido` |
-| `created_at` | timestamptz | NOT NULL | |
-| `updated_at` | timestamptz | NOT NULL | |
+Armazena contatos/leads importados para campanhas.
+
+| Coluna | Tipo | Nullable | Default | Descrição |
+|--------|------|----------|---------|-----------|
+| `id` | uuid | NOT NULL | `gen_random_uuid()` | PK |
+| `nome` | text | NOT NULL | - | Nome do lead |
+| `telefone` | text | NOT NULL | - | Número WhatsApp |
+| `telefoneFormatted` | text | NULL | - | Telefone formatado |
+| `condominio` | text | NULL | - | Nome do empreendimento |
+| `origem` | text | NULL | - | Fonte do lead |
+| `status_telefone` | text | NULL | `'pendente'` | Resultado da validação |
+| `interacao` | boolean | NOT NULL | `false` | Se lead respondeu |
+| `created_at` | timestamptz | NOT NULL | `now()` | |
+| `updated_at` | timestamptz | NOT NULL | `now()` | |
+
+**Índices:**
+- `leadflow_leads_pkey` - PRIMARY KEY (id)
+- `idx_leads_interacao` - INDEX PARTIAL (interacao) WHERE interacao = true
+
+**Triggers:**
+- `leadflow_leads_updated_at` - BEFORE UPDATE → `leadflow_update_updated_at()`
+- `trigger_criar_card_pipeline` - AFTER UPDATE → `criar_card_pipeline_on_interacao()`
+
+---
 
 #### Tabela: `leadflow_captadores`
-| Coluna | Tipo | Nullable | Descrição |
-|--------|------|----------|-----------|
-| `id` | uuid | NOT NULL | PK |
-| `instancia` | text | NOT NULL | Nome da instância WhatsApp |
-| `token` | text | NULL | Token de autenticação |
-| `nome_captador` | text | NULL | Nome amigável |
-| `telefone_cadastrado` | text | NULL | Número vinculado |
-| `status_ativo` | boolean | NOT NULL | Instância online |
-| `em_uso` | boolean | NOT NULL | Em uso por campanha |
-| `id_usuario` | uuid | NULL | FK → leadflow_usuarios |
-| `created_at` | timestamptz | NOT NULL | |
-| `updated_at` | timestamptz | NOT NULL | |
+Gerencia instâncias WhatsApp conectadas ao sistema.
+
+| Coluna | Tipo | Nullable | Default | Descrição |
+|--------|------|----------|---------|-----------|
+| `id` | uuid | NOT NULL | `gen_random_uuid()` | PK |
+| `nome_instancia` | varchar | NOT NULL | - | Nome da instância |
+| `nome_captador` | varchar | NOT NULL | - | Nome amigável |
+| `instancia` | varchar | NOT NULL | - | ID único da instância (UNIQUE) |
+| `token` | text | NULL | - | Token de autenticação |
+| `ativo` | boolean | NULL | `true` | Instância ativa |
+| `telefone_cadastrado` | varchar | NULL | - | Número vinculado |
+| `id_usuario` | uuid | NULL | - | FK → leadflow_usuarios |
+| `created_at` | timestamptz | NULL | `now()` | |
+| `updated_at` | timestamptz | NULL | `now()` | |
+
+**Índices:**
+- `leadflow_captadores_pkey` - PRIMARY KEY (id)
+- `leadflow_captadores_instancia_key` - UNIQUE (instancia)
+- `idx_captadores_id_usuario` - INDEX (id_usuario)
+
+**Foreign Keys:**
+- `leadflow_captadores_id_usuario_fkey` → `leadflow_usuarios(id)`
+
+**Triggers:**
+- `update_leadflow_captadores_updated_at` - BEFORE UPDATE → `update_updated_at_column()`
+
+---
 
 #### Tabela: `leadflow_campanhas`
-| Coluna | Tipo | Nullable | Descrição |
-|--------|------|----------|-----------|
-| `id` | uuid | NOT NULL | PK |
-| `nome` | text | NOT NULL | Nome da campanha |
-| `qtd_disparos` | integer | NOT NULL | Quantidade de mensagens |
-| `status` | enum | NOT NULL | `rascunho` \| `ativa` \| `pausada` \| `concluida` |
-| `data_inicio` | date | NULL | Data programada |
-| `horario_inicio` | time | NULL | Início do horário de envio |
-| `horario_fim` | time | NULL | Fim do horário de envio |
-| `intervalo_minutos` | integer | NULL | Intervalo entre envios |
-| `disparos_por_hora` | integer | NULL | Rate limit |
-| `leads` | jsonb | NULL | Lista de leads selecionados |
-| `templates` | jsonb | NULL | Templates vinculados |
-| `id_captador` | uuid | NULL | FK → leadflow_captadores |
-| `created_at` | timestamptz | NOT NULL | |
-| `updated_at` | timestamptz | NOT NULL | |
+Campanhas de disparo de mensagens em massa.
+
+| Coluna | Tipo | Nullable | Default | Descrição |
+|--------|------|----------|---------|-----------|
+| `id` | uuid | NOT NULL | `gen_random_uuid()` | PK |
+| `nome` | text | NOT NULL | - | Nome da campanha |
+| `qtd_disparos` | integer | NOT NULL | `0` | Quantidade de mensagens |
+| `status` | leadflow_status_campanha | NOT NULL | `'rascunho'` | Status atual |
+| `data_inicio` | timestamptz | NULL | - | Data/hora programada |
+| `horario_inicio` | time | NULL | `'08:00:00'` | Início do horário de envio |
+| `horario_fim` | time | NULL | `'18:00:00'` | Fim do horário de envio |
+| `intervalo_minutos` | integer | NULL | `5` | Intervalo entre envios |
+| `disparos_por_hora` | integer | NULL | `12` | Rate limit |
+| `leads` | jsonb | NULL | `'[]'` | Lista de leads selecionados |
+| `templates` | jsonb | NULL | `'[]'` | Templates vinculados |
+| `created_at` | timestamptz | NOT NULL | `now()` | |
+| `updated_at` | timestamptz | NOT NULL | `now()` | |
+
+**Índices:**
+- `leadflow_campanhas_pkey` - PRIMARY KEY (id)
+
+**Triggers:**
+- `leadflow_campanhas_updated_at` - BEFORE UPDATE → `leadflow_update_updated_at()`
+
+---
 
 #### Tabela: `leadflow_disparos`
-| Coluna | Tipo | Nullable | Descrição |
-|--------|------|----------|-----------|
-| `id` | uuid | NOT NULL | PK |
-| `id_campanha` | uuid | NOT NULL | FK → leadflow_campanhas |
-| `id_captador` | uuid | NULL | FK → leadflow_captadores |
-| `id_lead` | uuid | NULL | FK → leadflow_leads |
-| `id_template` | uuid | NULL | FK → leadflow_templates |
-| `nome` | text | NOT NULL | Nome do lead (snapshot) |
-| `telefone` | text | NOT NULL | Telefone (snapshot) |
-| `condominio` | text | NULL | Condomínio (snapshot) |
-| `mensagem_enviada` | text | NULL | Mensagem final após spintext |
-| `status_envio` | enum | NOT NULL | `pendente` \| `enviando` \| `enviado` \| `erro` |
-| `erro_log` | text | NULL | Detalhes do erro |
-| `enviado_at` | timestamptz | NULL | Timestamp do envio |
-| `created_at` | timestamptz | NOT NULL | |
-| `updated_at` | timestamptz | NOT NULL | |
+Registros individuais de mensagens enviadas.
+
+| Coluna | Tipo | Nullable | Default | Descrição |
+|--------|------|----------|---------|-----------|
+| `id` | uuid | NOT NULL | `gen_random_uuid()` | PK |
+| `id_campanha` | uuid | NOT NULL | - | FK → leadflow_campanhas |
+| `id_lead` | uuid | NULL | - | FK → leadflow_leads |
+| `id_captador` | uuid | NULL | - | FK → leadflow_captadores |
+| `id_template` | uuid | NULL | - | FK → leadflow_templates |
+| `nome` | text | NOT NULL | - | Nome do lead (snapshot) |
+| `telefone` | text | NOT NULL | - | Telefone (snapshot) |
+| `condominio` | text | NULL | - | Condomínio (snapshot) |
+| `status_envio` | leadflow_status_envio | NOT NULL | `'pendente'` | Status do envio |
+| `erro_log` | text | NULL | - | Detalhes do erro |
+| `enviado_at` | timestamptz | NULL | - | Timestamp do envio |
+| `created_at` | timestamptz | NOT NULL | `now()` | |
+| `updated_at` | timestamptz | NOT NULL | `now()` | |
+
+**Índices:**
+- `leadflow_disparos_pkey` - PRIMARY KEY (id)
+
+**Foreign Keys:**
+- `leadflow_disparos_id_campanha_fkey` → `leadflow_campanhas(id)`
+- `leadflow_disparos_id_lead_fkey` → `leadflow_leads(id)`
+- `leadflow_disparos_id_captador_fkey` → `leadflow_captadores(id)`
+
+**Triggers:**
+- `update_leadflow_disparos_updated_at` - BEFORE UPDATE → `update_updated_at_column()`
+
+---
 
 #### Tabela: `leadflow_templates`
-| Coluna | Tipo | Nullable | Descrição |
-|--------|------|----------|-----------|
-| `id` | uuid | NOT NULL | PK |
-| `nome` | text | NOT NULL | Nome do template |
-| `conteudo` | text | NOT NULL | Texto com spintext |
-| `created_at` | timestamptz | NOT NULL | |
-| `updated_at` | timestamptz | NOT NULL | |
+Templates de mensagem com suporte a spintext.
 
-#### Tabela: `leadflow_campanha_templates`
-| Coluna | Tipo | Nullable | Descrição |
-|--------|------|----------|-----------|
-| `id` | uuid | NOT NULL | PK |
-| `id_campanha` | uuid | NOT NULL | FK → leadflow_campanhas |
-| `id_template` | uuid | NOT NULL | FK → leadflow_templates |
-| `peso` | integer | NOT NULL | Peso para distribuição A/B |
-| `created_at` | timestamptz | NOT NULL | |
+| Coluna | Tipo | Nullable | Default | Descrição |
+|--------|------|----------|---------|-----------|
+| `id` | uuid | NOT NULL | `gen_random_uuid()` | PK |
+| `nome` | text | NOT NULL | - | Nome do template |
+| `conteudo` | text | NOT NULL | - | Texto com spintext |
+| `created_at` | timestamptz | NOT NULL | `now()` | |
+| `updated_at` | timestamptz | NOT NULL | `now()` | |
+
+**Índices:**
+- `leadflow_templates_pkey` - PRIMARY KEY (id)
+
+**Triggers:**
+- `update_templates_updated_at` - BEFORE UPDATE → `update_updated_at_column()`
+
+---
 
 #### Tabela: `leadflow_pipeline`
-| Coluna | Tipo | Nullable | Descrição |
-|--------|------|----------|-----------|
-| `id` | uuid | NOT NULL | PK |
-| `id_disparo` | uuid | NOT NULL | FK → leadflow_disparos (UNIQUE) |
-| `id_captador` | uuid | NULL | FK → leadflow_captadores |
-| `nome` | text | NOT NULL | Nome do lead |
-| `telefone` | text | NOT NULL | Telefone do lead |
-| `condominio` | text | NULL | Condomínio |
-| `stage` | enum | NOT NULL | Stage atual do funil |
-| `observacoes` | text | NULL | Notas do captador |
-| `created_at` | timestamptz | NOT NULL | |
-| `updated_at` | timestamptz | NOT NULL | |
+Cards do pipeline Kanban para gestão de leads qualificados.
+
+| Coluna | Tipo | Nullable | Default | Descrição |
+|--------|------|----------|---------|-----------|
+| `id` | uuid | NOT NULL | `gen_random_uuid()` | PK |
+| `id_disparo` | uuid | NOT NULL | - | FK → leadflow_disparos (UNIQUE) |
+| `id_captador` | uuid | NULL | - | FK → leadflow_captadores |
+| `id_lead` | uuid | NULL | - | FK → leadflow_leads |
+| `nome` | varchar | NOT NULL | - | Nome do lead |
+| `telefone` | varchar | NOT NULL | - | Telefone do lead |
+| `condominio` | varchar | NULL | - | Condomínio |
+| `stage` | stage_pipeline | NOT NULL | `'acompanhamento'` | Stage atual do funil |
+| `observacoes` | text | NULL | - | Notas do captador |
+| `created_at` | timestamptz | NOT NULL | `now()` | |
+| `updated_at` | timestamptz | NOT NULL | `now()` | |
+
+**Índices:**
+- `leadflow_pipeline_pkey` - PRIMARY KEY (id)
+- `leadflow_pipeline_id_disparo_key` - UNIQUE (id_disparo)
+- `idx_pipeline_captador` - INDEX (id_captador)
+- `idx_pipeline_lead` - INDEX (id_lead)
+- `idx_pipeline_stage` - INDEX (stage)
+- `idx_pipeline_created_at` - INDEX (created_at DESC)
+
+**Foreign Keys:**
+- `leadflow_pipeline_id_disparo_fkey` → `leadflow_disparos(id)`
+- `leadflow_pipeline_id_captador_fkey` → `leadflow_captadores(id)`
+- `leadflow_pipeline_id_lead_fkey` → `leadflow_leads(id)`
+
+**Triggers:**
+- `trigger_set_pipeline_lead` - BEFORE INSERT/UPDATE → `set_pipeline_lead()`
+
+---
 
 #### Tabela: `leadflow_pipeline_historico`
-| Coluna | Tipo | Nullable | Descrição |
-|--------|------|----------|-----------|
-| `id` | uuid | NOT NULL | PK |
-| `id_pipeline` | uuid | NOT NULL | FK → leadflow_pipeline |
-| `stage_anterior` | enum | NULL | Stage antes da mudança |
-| `stage_novo` | enum | NOT NULL | Stage após mudança |
-| `id_usuario` | uuid | NULL | FK → leadflow_usuarios |
-| `movido_em` | timestamptz | NOT NULL | Timestamp da mudança |
+Histórico de movimentações no pipeline.
+
+| Coluna | Tipo | Nullable | Default | Descrição |
+|--------|------|----------|---------|-----------|
+| `id` | uuid | NOT NULL | `gen_random_uuid()` | PK |
+| `id_pipeline` | uuid | NOT NULL | - | FK → leadflow_pipeline |
+| `id_lead` | uuid | NULL | - | FK → leadflow_leads |
+| `id_usuario` | uuid | NULL | - | FK → leadflow_usuarios |
+| `stage_anterior` | stage_pipeline | NULL | - | Stage antes da mudança |
+| `stage_novo` | stage_pipeline | NOT NULL | - | Stage após mudança |
+| `movido_em` | timestamptz | NOT NULL | `now()` | Timestamp da mudança |
+
+**Índices:**
+- `leadflow_pipeline_historico_pkey` - PRIMARY KEY (id)
+- `idx_pipeline_historico_pipeline` - INDEX (id_pipeline)
+- `idx_pipeline_historico_lead` - INDEX (id_lead)
+- `idx_pipeline_historico_usuario` - INDEX (id_usuario)
+- `idx_pipeline_historico_movido_em` - INDEX (movido_em DESC)
+- `uniq_pipeline_hist` - UNIQUE (id_pipeline, stage_anterior, stage_novo, movido_em)
+
+**Foreign Keys:**
+- `leadflow_pipeline_historico_id_pipeline_fkey` → `leadflow_pipeline(id)`
+- `leadflow_pipeline_historico_id_lead_fkey` → `leadflow_leads(id)`
+- `leadflow_pipeline_historico_id_usuario_fkey` → `leadflow_usuarios(id)`
+
+**Triggers:**
+- `trigger_hist_norm_dedupe` - BEFORE INSERT → `hist_norm_dedupe()`
+
+---
+
+#### Tabela: `leadflow_config`
+Configurações gerais do sistema em formato chave-valor.
+
+| Coluna | Tipo | Nullable | Default | Descrição |
+|--------|------|----------|---------|-----------|
+| `id` | uuid | NOT NULL | `gen_random_uuid()` | PK |
+| `chave` | text | NOT NULL | - | Nome da configuração (UNIQUE) |
+| `valor` | jsonb | NOT NULL | - | Valor da configuração |
+| `created_at` | timestamptz | NOT NULL | `now()` | |
+| `updated_at` | timestamptz | NOT NULL | `now()` | |
+
+**Índices:**
+- `leadflow_config_pkey` - PRIMARY KEY (id)
+- `leadflow_config_chave_key` - UNIQUE (chave)
+
+---
+
+#### Tabela: `leadflow_historico_mensages`
+Histórico de mensagens para sessões de chat/IA.
+
+| Coluna | Tipo | Nullable | Default | Descrição |
+|--------|------|----------|---------|-----------|
+| `id` | integer | NOT NULL | `nextval(...)` | PK auto-incremento |
+| `session_id` | varchar | NOT NULL | - | ID da sessão de conversa |
+| `message` | jsonb | NOT NULL | - | Conteúdo da mensagem |
+
+**Índices:**
+- `leadflow_historico_mensages_pkey` - PRIMARY KEY (id)
+
+---
 
 ### Enums do Banco
 
 ```sql
 -- Status de campanhas
-CREATE TYPE status_campanha AS ENUM ('rascunho', 'ativa', 'pausada', 'concluida');
+CREATE TYPE leadflow_status_campanha AS ENUM (
+  'rascunho',    -- Campanha em edição
+  'ativa',       -- Campanha em execução
+  'pausada',     -- Campanha pausada
+  'concluida'    -- Campanha finalizada
+);
 
 -- Status de envio de mensagens
-CREATE TYPE status_envio AS ENUM ('pendente', 'enviando', 'enviado', 'erro');
+CREATE TYPE leadflow_status_envio AS ENUM (
+  'pendente',    -- Aguardando envio
+  'enviando',    -- Em processamento
+  'enviado',     -- Enviado com sucesso
+  'erro'         -- Falha no envio
+);
 
--- Status de validação de leads
-CREATE TYPE leadflow_status_validacao AS ENUM ('pendente', 'validado', 'invalido');
-
--- Stages do pipeline/funil
+-- Stages do pipeline/funil (ordem lógica do funil)
 CREATE TYPE stage_pipeline AS ENUM (
-  'perdido',           -- Lead perdido
-  'acompanhamento',    -- Em acompanhamento
-  'indicacao',         -- Indicação recebida
-  'qualificado',       -- Lead qualificado
-  'coleta_dados',      -- Coletando dados
+  'acompanhamento',       -- Em acompanhamento inicial
+  'qualificado',          -- Lead qualificado
+  'coleta_dados',         -- Coletando dados do imóvel
   'captacao_formalizada', -- Captação formalizada
-  'agendamento'        -- Visita agendada
+  'agendamento',          -- Visita agendada
+  'indicacao',            -- Indicação recebida
+  'perdido'               -- Lead perdido
 );
 ```
+
+---
+
+### Funções (Functions)
+
+#### `leadflow_update_updated_at()`
+Atualiza automaticamente o campo `updated_at` para o timestamp atual.
+
+```sql
+CREATE OR REPLACE FUNCTION leadflow_update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+**Usada por:** `leadflow_campanhas`, `leadflow_leads`
+
+---
+
+#### `update_updated_at_column()`
+Função genérica para atualização de `updated_at`.
+
+```sql
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+**Usada por:** `leadflow_captadores`, `leadflow_disparos`, `leadflow_templates`
+
+---
+
+#### `criar_card_pipeline_on_interacao()`
+Cria automaticamente um card no pipeline quando um lead interage (responde).
+
+```sql
+CREATE OR REPLACE FUNCTION criar_card_pipeline_on_interacao()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_disparo RECORD;
+BEGIN
+  IF NEW.interacao = true AND (OLD.interacao IS NULL OR OLD.interacao = false) THEN
+    -- Busca o disparo mais recente do lead
+    SELECT d.id, d.id_captador, d.nome, d.telefone, d.condominio
+    INTO v_disparo
+    FROM leadflow_disparos d
+    WHERE d.id_lead = NEW.id
+    ORDER BY d.created_at DESC
+    LIMIT 1;
+
+    IF v_disparo.id IS NOT NULL THEN
+      INSERT INTO leadflow_pipeline (id_disparo, id_captador, id_lead, nome, telefone, condominio)
+      VALUES (v_disparo.id, v_disparo.id_captador, NEW.id, v_disparo.nome, v_disparo.telefone, v_disparo.condominio)
+      ON CONFLICT (id_disparo) DO NOTHING;
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+**Trigger:** `trigger_criar_card_pipeline` em `leadflow_leads`
+
+---
+
+#### `set_pipeline_lead()`
+Preenche automaticamente o `id_lead` no pipeline baseado no disparo.
+
+```sql
+CREATE OR REPLACE FUNCTION set_pipeline_lead()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.id_lead IS NULL THEN
+    SELECT d.id_lead INTO NEW.id_lead
+    FROM leadflow_disparos d
+    WHERE d.id = NEW.id_disparo;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+**Trigger:** `trigger_set_pipeline_lead` em `leadflow_pipeline`
+
+---
+
+#### `hist_norm_dedupe()`
+Normaliza timestamps, preenche campos automaticamente e evita duplicatas no histórico.
+
+```sql
+CREATE OR REPLACE FUNCTION hist_norm_dedupe()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_id_usuario UUID;
+  v_id_lead UUID;
+  v_movido_em TIMESTAMPTZ;
+BEGIN
+  -- Normaliza timestamp (segundos)
+  v_movido_em := date_trunc('second', COALESCE(NEW.movido_em, now()));
+  NEW.movido_em := v_movido_em;
+
+  -- Preenche id_lead se nulo
+  IF NEW.id_lead IS NULL THEN
+    SELECT p.id_lead INTO v_id_lead
+    FROM leadflow_pipeline p
+    WHERE p.id = NEW.id_pipeline;
+
+    IF v_id_lead IS NULL THEN
+      SELECT d.id_lead INTO v_id_lead
+      FROM leadflow_disparos d
+      JOIN leadflow_pipeline p ON p.id_disparo = d.id
+      WHERE p.id = NEW.id_pipeline;
+    END IF;
+
+    NEW.id_lead := v_id_lead;
+  END IF;
+
+  -- Preenche id_usuario se nulo
+  IF NEW.id_usuario IS NULL THEN
+    SELECT c.id_usuario INTO v_id_usuario
+    FROM leadflow_pipeline p
+    JOIN leadflow_captadores c ON c.id = p.id_captador
+    WHERE p.id = NEW.id_pipeline;
+
+    NEW.id_usuario := v_id_usuario;
+  END IF;
+
+  -- Evita duplicar
+  IF EXISTS (
+    SELECT 1
+    FROM leadflow_pipeline_historico h
+    WHERE h.id_pipeline = NEW.id_pipeline
+      AND h.stage_anterior IS NOT DISTINCT FROM NEW.stage_anterior
+      AND h.stage_novo = NEW.stage_novo
+      AND date_trunc('second', h.movido_em) = v_movido_em
+  ) THEN
+    RETURN NULL; -- ignora o insert duplicado
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+**Trigger:** `trigger_hist_norm_dedupe` em `leadflow_pipeline_historico`
+
+---
+
+### Resumo de Triggers
+
+| Tabela | Trigger | Evento | Função |
+|--------|---------|--------|--------|
+| `leadflow_campanhas` | `leadflow_campanhas_updated_at` | BEFORE UPDATE | `leadflow_update_updated_at()` |
+| `leadflow_captadores` | `update_leadflow_captadores_updated_at` | BEFORE UPDATE | `update_updated_at_column()` |
+| `leadflow_disparos` | `update_leadflow_disparos_updated_at` | BEFORE UPDATE | `update_updated_at_column()` |
+| `leadflow_leads` | `leadflow_leads_updated_at` | BEFORE UPDATE | `leadflow_update_updated_at()` |
+| `leadflow_leads` | `trigger_criar_card_pipeline` | AFTER UPDATE | `criar_card_pipeline_on_interacao()` |
+| `leadflow_pipeline` | `trigger_set_pipeline_lead` | BEFORE INSERT/UPDATE | `set_pipeline_lead()` |
+| `leadflow_pipeline_historico` | `trigger_hist_norm_dedupe` | BEFORE INSERT | `hist_norm_dedupe()` |
+| `leadflow_templates` | `update_templates_updated_at` | BEFORE UPDATE | `update_updated_at_column()` |
 
 ### Diagrama ER
 
@@ -469,17 +825,16 @@ erDiagram
     leadflow_usuarios ||--o{ leadflow_captadores : "possui"
     leadflow_usuarios ||--o{ leadflow_pipeline_historico : "registra"
 
-    leadflow_captadores ||--o{ leadflow_campanhas : "executa"
     leadflow_captadores ||--o{ leadflow_disparos : "envia"
     leadflow_captadores ||--o{ leadflow_pipeline : "gerencia"
 
     leadflow_campanhas ||--o{ leadflow_disparos : "contém"
-    leadflow_campanhas ||--o{ leadflow_campanha_templates : "usa"
 
-    leadflow_templates ||--o{ leadflow_campanha_templates : "usado_em"
     leadflow_templates ||--o{ leadflow_disparos : "template_de"
 
     leadflow_leads ||--o{ leadflow_disparos : "recebe"
+    leadflow_leads ||--o{ leadflow_pipeline : "vinculado"
+    leadflow_leads ||--o{ leadflow_pipeline_historico : "histórico_lead"
 
     leadflow_disparos ||--|| leadflow_pipeline : "gera"
 
@@ -487,28 +842,40 @@ erDiagram
 
     leadflow_usuarios {
         uuid id PK
+        uuid user_id
         text nome
         text email
         text senha
-        enum role
+        text role
         boolean ativo
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     leadflow_leads {
         uuid id PK
         text nome
         text telefone
+        text telefoneFormatted
         text condominio
         text origem
-        enum status_validacao
+        text status_telefone
+        boolean interacao
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     leadflow_captadores {
         uuid id PK
-        text instancia
+        varchar nome_instancia
+        varchar nome_captador
+        varchar instancia UK
         text token
-        boolean status_ativo
+        boolean ativo
+        varchar telefone_cadastrado
         uuid id_usuario FK
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     leadflow_campanhas {
@@ -516,7 +883,15 @@ erDiagram
         text nome
         integer qtd_disparos
         enum status
-        uuid id_captador FK
+        timestamptz data_inicio
+        time horario_inicio
+        time horario_fim
+        integer intervalo_minutos
+        integer disparos_por_hora
+        jsonb leads
+        jsonb templates
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     leadflow_disparos {
@@ -524,21 +899,61 @@ erDiagram
         uuid id_campanha FK
         uuid id_lead FK
         uuid id_captador FK
+        uuid id_template FK
+        text nome
+        text telefone
+        text condominio
         enum status_envio
-        text mensagem_enviada
+        text erro_log
+        timestamptz enviado_at
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     leadflow_templates {
         uuid id PK
         text nome
         text conteudo
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     leadflow_pipeline {
         uuid id PK
-        uuid id_disparo FK
+        uuid id_disparo FK_UK
+        uuid id_captador FK
+        uuid id_lead FK
+        varchar nome
+        varchar telefone
+        varchar condominio
         enum stage
         text observacoes
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    leadflow_pipeline_historico {
+        uuid id PK
+        uuid id_pipeline FK
+        uuid id_lead FK
+        uuid id_usuario FK
+        enum stage_anterior
+        enum stage_novo
+        timestamptz movido_em
+    }
+
+    leadflow_config {
+        uuid id PK
+        text chave UK
+        jsonb valor
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    leadflow_historico_mensages {
+        integer id PK
+        varchar session_id
+        jsonb message
     }
 ```
 

@@ -39,6 +39,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Input } from "@/components/ui/input";
 import {
   KanbanSquare,
   Phone,
@@ -50,8 +51,14 @@ import {
   ChevronRight,
   ChevronLeft,
   X,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// Remove todos os caracteres não numéricos do telefone para comparação
+const normalizePhone = (phone: string): string => {
+  return phone.replace(/\D/g, "");
+};
 
 export default function PipelinePage() {
   const { isAdmin } = useAuth();
@@ -62,6 +69,33 @@ export default function PipelinePage() {
   const [selectedCard, setSelectedCard] = useState<PipelineCard | null>(null);
   const [notes, setNotes] = useState("");
   const [draggedCard, setDraggedCard] = useState<PipelineCard | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Filtra cards por telefone ou nome (normaliza telefone para busca)
+  const filterCards = (cards: PipelineCard[] | undefined) => {
+    if (!cards || !searchTerm.trim()) return cards || [];
+
+    const normalizedSearch = normalizePhone(searchTerm);
+    const searchLower = searchTerm.toLowerCase().trim();
+
+    return cards.filter((card) => {
+      // Busca por telefone normalizado (remove formatação)
+      const normalizedCardPhone = normalizePhone(card.telefone);
+      if (normalizedSearch && normalizedCardPhone.includes(normalizedSearch)) {
+        return true;
+      }
+      // Busca por nome
+      if (card.nome.toLowerCase().includes(searchLower)) {
+        return true;
+      }
+      return false;
+    });
+  };
+
+  // Conta total de cards filtrados
+  const filteredTotalCards = searchTerm.trim()
+    ? STAGES_ORDER.reduce((acc, stage) => acc + filterCards(cardsByStage[stage]).length, 0)
+    : totalCards;
 
   const handleOpenCard = (card: PipelineCard) => {
     setSelectedCard(card);
@@ -115,39 +149,58 @@ export default function PipelinePage() {
     getCurrentStageIndex(stage) < STAGES_ORDER.length - 1;
 
   return (
-    <div className="space-y-6 animate-slide-in">
+    <div className="space-y-4 animate-slide-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Pipeline de Captação</h1>
-          <p className="text-muted-foreground mt-1">
-            {isAdmin
-              ? "Gerencie todos os proprietários que responderam"
-              : "Gerencie seus proprietários que responderam"}
-          </p>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Pipeline de Captação</h1>
+            <p className="text-muted-foreground mt-1">
+              {isAdmin
+                ? "Gerencie todos os proprietários que responderam"
+                : "Gerencie seus proprietários que responderam"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <KanbanSquare className="w-5 h-5 text-primary" />
+            <span className="text-sm font-medium">
+              {searchTerm.trim() ? `${filteredTotalCards} de ${totalCards}` : totalCards} cards
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <KanbanSquare className="w-5 h-5 text-primary" />
-          <span className="text-sm font-medium">{totalCards} cards</span>
+
+        {/* Barra de busca */}
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por telefone ou nome..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
         </div>
       </div>
 
       {/* Stats por stage */}
       <div className="flex gap-2 overflow-x-auto pb-2">
-        {STAGES_ORDER.map((stage) => (
-          <div
-            key={stage}
-            className={cn(
-              "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium text-white shrink-0",
-              STAGE_CONFIG[stage].color
-            )}
-          >
-            <span>{STAGE_CONFIG[stage].label}</span>
-            <span className="bg-white/20 px-1.5 py-0.5 rounded-full">
-              {cardsByStage[stage]?.length || 0}
-            </span>
-          </div>
-        ))}
+        {STAGES_ORDER.map((stage) => {
+          const filteredCount = filterCards(cardsByStage[stage]).length;
+          const totalCount = cardsByStage[stage]?.length || 0;
+          return (
+            <div
+              key={stage}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium text-white shrink-0",
+                STAGE_CONFIG[stage].color
+              )}
+            >
+              <span>{STAGE_CONFIG[stage].label}</span>
+              <span className="bg-white/20 px-1.5 py-0.5 rounded-full">
+                {searchTerm.trim() ? `${filteredCount}/${totalCount}` : totalCount}
+              </span>
+            </div>
+          );
+        })}
       </div>
 
       {/* Kanban Board */}
@@ -163,6 +216,16 @@ export default function PipelinePage() {
           </p>
           <p className="text-xs text-muted-foreground/70">
             Quando um lead responder, ele aparecerá aqui automaticamente
+          </p>
+        </div>
+      ) : searchTerm.trim() && filteredTotalCards === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <Search className="w-16 h-16 text-muted-foreground/50" />
+          <p className="text-muted-foreground">
+            Nenhum resultado para "{searchTerm}"
+          </p>
+          <p className="text-xs text-muted-foreground/70">
+            Tente buscar por outro telefone ou nome
           </p>
         </div>
       ) : (
@@ -189,7 +252,9 @@ export default function PipelinePage() {
                 <div className="flex items-center justify-between text-white">
                   <h3 className="font-medium">{STAGE_CONFIG[stage].label}</h3>
                   <Badge variant="secondary" className="bg-white/20 text-white border-0">
-                    {cardsByStage[stage]?.length || 0}
+                    {searchTerm.trim()
+                      ? `${filterCards(cardsByStage[stage]).length}/${cardsByStage[stage]?.length || 0}`
+                      : cardsByStage[stage]?.length || 0}
                   </Badge>
                 </div>
                 <p className="text-xs text-white/80 mt-1">
@@ -199,7 +264,7 @@ export default function PipelinePage() {
 
               {/* Cards */}
               <div className="p-2 space-y-2 min-h-[200px] max-h-[calc(100vh-400px)] overflow-y-auto">
-                {cardsByStage[stage]?.map((card) => (
+                {filterCards(cardsByStage[stage]).map((card) => (
                   <div
                     key={card.id}
                     draggable

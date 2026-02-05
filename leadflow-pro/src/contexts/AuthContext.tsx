@@ -103,8 +103,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, senha: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      // Busca o usuário pelo email e senha
-      const { data, error } = await supabase
+      // Query direta no banco (temporário até Edge Function funcionar)
+      const { data: usuarioData, error: queryError } = await supabase
         .from("leadflow_usuarios")
         .select("id, nome, email, role, ativo")
         .eq("email", email.toLowerCase().trim())
@@ -112,11 +112,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq("ativo", true)
         .maybeSingle();
 
-      if (error || !data) {
-        return { success: false, error: "Email ou senha incorretos" };
+      if (queryError) {
+        return { success: false, error: "Erro ao conectar com o servidor" };
       }
 
-      const usuarioData = data as Usuario;
+      if (!usuarioData) {
+        return { success: false, error: "Email ou senha incorretos" };
+      }
 
       // Salva no localStorage
       localStorage.setItem(STORAGE_KEY, JSON.stringify(usuarioData));
@@ -130,8 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       return { success: true };
-    } catch (error) {
-      console.error("Erro ao fazer login:", error);
+    } catch {
       return { success: false, error: "Erro ao fazer login. Tente novamente." };
     }
   };
