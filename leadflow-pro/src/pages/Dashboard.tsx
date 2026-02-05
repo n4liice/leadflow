@@ -4,6 +4,7 @@ import { useLeads, useLeadsStats } from "@/hooks/useLeads";
 import { useCampanhasAtivas } from "@/hooks/useCampanhas";
 import { useDisparosStats } from "@/hooks/useDisparos";
 import { useCaptadores } from "@/hooks/useCaptadores";
+import { STAGES_ORDER, STAGE_CONFIG, usePipelineStats } from "@/hooks/usePipeline";
 
 export default function Dashboard() {
   const { data: leads } = useLeads();
@@ -11,6 +12,7 @@ export default function Dashboard() {
   const { data: campanhasAtivas } = useCampanhasAtivas();
   const { data: disparosStats } = useDisparosStats();
   const { data: captadores } = useCaptadores();
+  const pipelineStats = usePipelineStats();
 
   const totalLeads = leads?.length || 0;
   const campanhasAtivasCount = campanhasAtivas?.length || 0;
@@ -18,6 +20,7 @@ export default function Dashboard() {
   const erros = disparosStats?.erro || 0;
   const captadoresOnline = captadores?.filter(c => c.ativo).length || 0;
   const disparosEmAndamento = disparosStats?.enviando || 0;
+  const totalPipeline = pipelineStats.total || 0;
 
   return (
     <div className="space-y-8 animate-slide-in">
@@ -169,6 +172,33 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      <div className="glass-card p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Pipeline por EstÃ¡gio</h3>
+          <span className="text-sm text-muted-foreground">
+            Total: {totalPipeline.toLocaleString("pt-BR")}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {STAGES_ORDER.map(stage => (
+            <div key={stage} className="flex items-center gap-3 p-3 rounded-lg bg-muted/40">
+              <div className={`w-3 h-3 rounded-full ${STAGE_CONFIG[stage].color}`} />
+              <div>
+                <p className="text-sm text-muted-foreground">{STAGE_CONFIG[stage].label}</p>
+                <p className="text-xl font-semibold">
+                  {pipelineStats[stage].toLocaleString("pt-BR")}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+        {totalPipeline === 0 && (
+          <p className="mt-4 text-sm text-muted-foreground">
+            Nenhum card no pipeline ainda.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

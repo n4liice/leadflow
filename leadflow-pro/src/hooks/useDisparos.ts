@@ -20,9 +20,9 @@ export interface Disparo {
   updated_at: string;
 }
 
-export function useDisparos(campanhaId?: string) {
+export function useDisparos(campanhaId?: string, captadorId?: string) {
   return useQuery({
-    queryKey: ["disparos", campanhaId],
+    queryKey: ["disparos", campanhaId, captadorId],
     queryFn: async () => {
       let query = supabase
         .from("leadflow_disparos")
@@ -31,6 +31,10 @@ export function useDisparos(campanhaId?: string) {
 
       if (campanhaId) {
         query = query.eq("id_campanha", campanhaId);
+      }
+
+      if (captadorId) {
+        query = query.eq("id_captador", captadorId);
       }
 
       const { data, error } = await query;
@@ -91,14 +95,19 @@ export function useCreateDisparos() {
   });
 }
 
-export function useDisparosStats() {
+export function useDisparosStats(captadorId?: string) {
   return useQuery({
-    queryKey: ["disparos", "stats"],
+    queryKey: ["disparos", "stats", captadorId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("leadflow_disparos")
         .select("status_envio");
 
+      if (captadorId) {
+        query = query.eq("id_captador", captadorId);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
 
       const stats = {

@@ -205,6 +205,52 @@ export default function CampanhasPage() {
     }
   };
 
+  const formatDateTime = (dateString: string | null) => {
+    if (!dateString) return "-";
+    const date = new Date(dateString);
+    return date.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const calcularDuracao = (inicio: string, fim: string | null, status: string) => {
+    if (status !== 'concluida' || !fim) {
+      // Para campanhas ativas/pausadas, mostra tempo desde criação
+      if (status === 'ativa' || status === 'pausada') {
+        const start = new Date(inicio);
+        const now = new Date();
+        const diffMs = now.getTime() - start.getTime();
+        return formatDuracao(diffMs) + " (em andamento)";
+      }
+      return "-";
+    }
+
+    const start = new Date(inicio);
+    const end = new Date(fim);
+    const diffMs = end.getTime() - start.getTime();
+    return formatDuracao(diffMs);
+  };
+
+  const formatDuracao = (diffMs: number) => {
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMinutes / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffDays > 0) {
+      const horasRestantes = diffHours % 24;
+      return `${diffDays}d ${horasRestantes}h`;
+    }
+    if (diffHours > 0) {
+      const minutosRestantes = diffMinutes % 60;
+      return `${diffHours}h ${minutosRestantes}min`;
+    }
+    return `${diffMinutes}min`;
+  };
+
   return (
     <div className="space-y-6 animate-slide-in">
       <div className="flex items-center justify-between">
@@ -359,6 +405,9 @@ export default function CampanhasPage() {
               <TableHead>Intervalo</TableHead>
               <TableHead>Por Hora</TableHead>
               <TableHead>Horário</TableHead>
+              <TableHead>Criada em</TableHead>
+              <TableHead>Concluída em</TableHead>
+              <TableHead>Duração</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Ações</TableHead>
             </TableRow>
@@ -366,13 +415,13 @@ export default function CampanhasPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
                   Carregando campanhas...
                 </TableCell>
               </TableRow>
             ) : campanhas?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12">
+                <TableCell colSpan={10} className="text-center py-12">
                   <div className="flex flex-col items-center gap-3">
                     <Rocket className="w-12 h-12 text-muted-foreground/50" />
                     <p className="text-muted-foreground">Nenhuma campanha criada</p>
@@ -394,6 +443,15 @@ export default function CampanhasPage() {
                     {campanha.horario_inicio && campanha.horario_fim
                       ? `${campanha.horario_inicio} - ${campanha.horario_fim}`
                       : "08:00 - 18:00"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm">
+                    {formatDateTime(campanha.created_at)}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm">
+                    {campanha.status === 'concluida' ? formatDateTime(campanha.updated_at) : "-"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm">
+                    {calcularDuracao(campanha.created_at, campanha.updated_at, campanha.status)}
                   </TableCell>
                   <TableCell>
                     <StatusBadge

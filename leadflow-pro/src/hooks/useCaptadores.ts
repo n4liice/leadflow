@@ -10,6 +10,7 @@ export interface Captador {
   token: string | null;
   ativo: boolean;
   telefone_cadastrado: string | null;
+  id_usuario: string | null;
   created_at: string;
   updated_at: string;
 }

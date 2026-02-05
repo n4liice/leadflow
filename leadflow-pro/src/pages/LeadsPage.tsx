@@ -81,19 +81,44 @@ export default function LeadsPage() {
 
     const fileName = file.name.replace('.csv', '');
     const text = await file.text();
-    const lines = text.split('\n').slice(1); // Skip header
+    const lines = text.split('\n');
+
+    // Detecta o separador (vírgula ou ponto e vírgula)
+    const firstLine = lines[0] || '';
+    const separator = firstLine.includes(';') ? ';' : ',';
+
+    // Pega o header para identificar as colunas
+    const header = lines[0].split(separator).map(h => h.trim().toLowerCase().replace(/"/g, ''));
+
+    // Encontra os índices das colunas
+    const nomeIndex = header.findIndex(h => h === 'nome');
+    const telefoneIndex = header.findIndex(h => h === 'telefone');
+    const condominioIndex = header.findIndex(h => h === 'condominio' || h === 'condomínio');
+    const origemIndex = header.findIndex(h => h === 'origem');
+
+    console.log('Header detectado:', header);
+    console.log('Índices:', { nomeIndex, telefoneIndex, condominioIndex, origemIndex });
+
     const leadsToImport = lines
+      .slice(1) // Skip header
       .filter(line => line.trim())
       .map(line => {
-        const [nome, telefone, condominio] = line.split(',').map(s => s.trim().replace(/"/g, ''));
+        const cols = line.split(separator).map(s => s.trim().replace(/"/g, ''));
+
+        const nome = nomeIndex >= 0 ? cols[nomeIndex] : cols[0];
+        const telefone = telefoneIndex >= 0 ? cols[telefoneIndex] : cols[1];
+        const condominio = condominioIndex >= 0 ? cols[condominioIndex] : cols[2];
+        const origem = origemIndex >= 0 ? cols[origemIndex] : cols[3];
+
         return {
-          nome,
-          telefone,
+          nome: nome || '',
+          telefone: telefone || '',
           condominio: condominio || null,
           status_telefone: 'pendente',
-          origem: fileName,
+          origem: origem || fileName, // Usa a coluna origem do CSV, ou o nome do arquivo como fallback
         };
-      });
+      })
+      .filter(lead => lead.nome && lead.telefone); // Filtra linhas vazias
 
     if (leadsToImport.length > 0) {
       importLeads.mutate(leadsToImport, {

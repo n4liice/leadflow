@@ -146,8 +146,14 @@ export function useImportLeads() {
       });
 
       if (leadsNovos.length > 0) {
-        // Insere os leads no banco
-        const leadsParaInserir = leadsNovos.map(({ origem, ...leadData }) => leadData);
+        // Insere os leads no banco (incluindo origem)
+        const leadsParaInserir = leadsNovos.map(lead => ({
+          nome: lead.nome,
+          telefone: lead.telefone,
+          condominio: lead.condominio,
+          origem: lead.origem || "CSV",
+          status_telefone: lead.status_telefone,
+        }));
         const { data: insertedLeads, error } = await supabase
           .from("leadflow_leads")
           .insert(leadsParaInserir)

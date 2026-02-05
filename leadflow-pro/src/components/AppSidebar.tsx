@@ -6,7 +6,8 @@ import {
   Activity,
   FileText,
   Settings,
-  Fish
+  Fish,
+  KanbanSquare
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -20,18 +21,26 @@ import {
   SidebarMenuItem,
   SidebarHeader,
 } from "@/components/ui/sidebar";
+import { useAuth } from "@/contexts/AuthContext";
 
 const navigationItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Gestão de Leads", url: "/leads", icon: Users },
-  { title: "Central de Captadores", url: "/captadores", icon: Radio },
-  { title: "Campanhas", url: "/campanhas", icon: Rocket },
-  { title: "Monitor de Envio", url: "/monitor", icon: Activity },
-  { title: "Templates", url: "/templates", icon: FileText },
-  { title: "Administração", url: "/admin", icon: Settings },
+  { title: "Dashboard", url: "/", icon: LayoutDashboard, adminOnly: true },
+  { title: "Gestão de Leads", url: "/leads", icon: Users, adminOnly: true },
+  { title: "Central de Captadores", url: "/captadores", icon: Radio, adminOnly: true },
+  { title: "Campanhas", url: "/campanhas", icon: Rocket, adminOnly: true },
+  { title: "Monitor de Envio", url: "/monitor", icon: Activity, adminOnly: false },
+  { title: "Pipeline", url: "/pipeline", icon: KanbanSquare, adminOnly: false },
+  { title: "Templates", url: "/templates", icon: FileText, adminOnly: true },
+  { title: "Administração", url: "/admin", icon: Settings, adminOnly: true },
 ];
 
 export function AppSidebar() {
+  const { isAdmin } = useAuth();
+
+  const visibleItems = navigationItems.filter(
+    (item) => !item.adminOnly || isAdmin
+  );
+
   return (
     <Sidebar className="border-r border-sidebar-border">
       <SidebarHeader className="p-6 border-b border-sidebar-border">
@@ -53,7 +62,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
-              {navigationItems.map((item) => (
+              {visibleItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink

@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      leadflow_usuarios: {
+        Row: {
+          id: string
+          user_id: string | null
+          nome: string
+          email: string
+          senha: string | null
+          role: "admin" | "captador"
+          ativo: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          nome: string
+          email: string
+          senha?: string | null
+          role?: "admin" | "captador"
+          ativo?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          nome?: string
+          email?: string
+          senha?: string | null
+          role?: "admin" | "captador"
+          ativo?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       leadflow_leads: {
         Row: {
           condominio: string | null
@@ -120,6 +156,7 @@ export type Database = {
           status_ativo: boolean
           token: string | null
           updated_at: string
+          id_usuario: string | null
         }
         Insert: {
           created_at?: string
@@ -131,6 +168,7 @@ export type Database = {
           status_ativo?: boolean
           token?: string | null
           updated_at?: string
+          id_usuario?: string | null
         }
         Update: {
           created_at?: string
@@ -142,8 +180,17 @@ export type Database = {
           status_ativo?: boolean
           token?: string | null
           updated_at?: string
+          id_usuario?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "leadflow_captadores_id_usuario_fkey"
+            columns: ["id_usuario"]
+            isOneToOne: false
+            referencedRelation: "leadflow_usuarios"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       leadflow_disparos: {
         Row: {
@@ -309,6 +356,102 @@ export type Database = {
         }
         Relationships: []
       }
+      leadflow_pipeline: {
+        Row: {
+          id: string
+          id_disparo: string
+          id_captador: string | null
+          nome: string
+          telefone: string
+          condominio: string | null
+          stage: Database["public"]["Enums"]["stage_pipeline"]
+          observacoes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          id_disparo: string
+          id_captador?: string | null
+          nome: string
+          telefone: string
+          condominio?: string | null
+          stage?: Database["public"]["Enums"]["stage_pipeline"]
+          observacoes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          id_disparo?: string
+          id_captador?: string | null
+          nome?: string
+          telefone?: string
+          condominio?: string | null
+          stage?: Database["public"]["Enums"]["stage_pipeline"]
+          observacoes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leadflow_pipeline_id_disparo_fkey"
+            columns: ["id_disparo"]
+            isOneToOne: true
+            referencedRelation: "leadflow_disparos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leadflow_pipeline_id_captador_fkey"
+            columns: ["id_captador"]
+            isOneToOne: false
+            referencedRelation: "leadflow_captadores"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      leadflow_pipeline_historico: {
+        Row: {
+          id: string
+          id_pipeline: string
+          stage_anterior: Database["public"]["Enums"]["stage_pipeline"] | null
+          stage_novo: Database["public"]["Enums"]["stage_pipeline"]
+          id_usuario: string | null
+          movido_em: string
+        }
+        Insert: {
+          id?: string
+          id_pipeline: string
+          stage_anterior?: Database["public"]["Enums"]["stage_pipeline"] | null
+          stage_novo: Database["public"]["Enums"]["stage_pipeline"]
+          id_usuario?: string | null
+          movido_em?: string
+        }
+        Update: {
+          id?: string
+          id_pipeline?: string
+          stage_anterior?: Database["public"]["Enums"]["stage_pipeline"] | null
+          stage_novo?: Database["public"]["Enums"]["stage_pipeline"]
+          id_usuario?: string | null
+          movido_em?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leadflow_pipeline_historico_id_pipeline_fkey"
+            columns: ["id_pipeline"]
+            isOneToOne: false
+            referencedRelation: "leadflow_pipeline"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leadflow_pipeline_historico_id_usuario_fkey"
+            columns: ["id_usuario"]
+            isOneToOne: false
+            referencedRelation: "leadflow_usuarios"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -321,6 +464,7 @@ export type Database = {
       status_envio: "pendente" | "enviando" | "enviado" | "erro"
       status_validacao: "pendente" | "validado" | "invalido"
       leadflow_status_validacao: "pendente" | "validado" | "invalido"
+      stage_pipeline: "perdido" | "acompanhamento" | "indicacao" | "qualificado" | "coleta_dados" | "captacao_formalizada" | "agendamento"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -452,6 +596,7 @@ export const Constants = {
       status_envio: ["pendente", "enviando", "enviado", "erro"],
       status_validacao: ["pendente", "validado", "invalido"],
       leadflow_status_validacao: ["pendente", "validado", "invalido"],
+      stage_pipeline: ["perdido", "acompanhamento", "indicacao", "qualificado", "coleta_dados", "captacao_formalizada", "agendamento"],
     },
   },
 } as const
