@@ -11,7 +11,8 @@ export type StagePipeline =
   | "qualificado"
   | "coleta_dados"
   | "captacao_formalizada"
-  | "agendamento";
+  | "agendamento"
+  | "lead";
 
 export interface PipelineCard {
   id: string;
@@ -68,6 +69,11 @@ export const STAGE_CONFIG: Record<StagePipeline, { label: string; color: string;
     color: "bg-orange-500",
     description: "Agendamentos de fotos/visitas"
   },
+  lead: {
+    label: "Lead",
+    color: "bg-cyan-500",
+    description: "Possíveis compradores interessados"
+  },
 };
 
 export const STAGES_ORDER: StagePipeline[] = [
@@ -78,6 +84,7 @@ export const STAGES_ORDER: StagePipeline[] = [
   "coleta_dados",
   "captacao_formalizada",
   "agendamento",
+  "lead",
 ];
 
 // Hook para buscar cards do pipeline

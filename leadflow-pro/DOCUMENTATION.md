@@ -1,9 +1,10 @@
 # LeadFlow Pro - Documentação Técnica Mestre
 
-> **Versão:** 2.0.0
-> **Última Atualização:** 05 de Fevereiro de 2026
+> **Versão:** 3.0.0
+> **Última Atualização:** 06 de Fevereiro de 2026
 > **Arquitetura:** Feature-Based com Hooks Layer
 > **Projeto Supabase:** Vista Tech. (nrlnukkkrgtcnrsozbea)
+> **Deploy:** EasyPanel (PaaS)
 
 ---
 
@@ -18,8 +19,9 @@
 7. [Fluxo de Dados](#7-fluxo-de-dados)
 8. [Sistema de Autenticação](#8-sistema-de-autenticação)
 9. [Variáveis de Ambiente](#9-variáveis-de-ambiente)
-10. [Diagramas de Arquitetura](#10-diagramas-de-arquitetura)
-11. [Melhorias Recomendadas](#11-melhorias-recomendadas)
+10. [Deploy com EasyPanel](#10-deploy-com-easypanel)
+11. [Diagramas de Arquitetura](#11-diagramas-de-arquitetura)
+12. [Melhorias Recomendadas](#12-melhorias-recomendadas)
 
 ---
 
@@ -37,10 +39,10 @@
 |--------|-----------|
 | **Dashboard** | Métricas consolidadas e visão geral do sistema |
 | **Leads** | Gestão de contatos com validação de telefone via IA |
-| **Captadores** | Gerenciamento de instâncias WhatsApp |
+| **Captadores** | Gerenciamento de instâncias WhatsApp com origem e status |
 | **Campanhas** | Criação e execução de disparos em massa |
 | **Monitor** | Acompanhamento em tempo real dos envios |
-| **Pipeline** | Kanban para gestão do funil de vendas com busca por telefone |
+| **Pipeline** | Kanban para gestão do funil de vendas com filtros avançados |
 | **Templates** | Editor de mensagens com spintext |
 
 ### Pipeline - Funcionalidades Detalhadas
@@ -57,11 +59,13 @@ O módulo Pipeline oferece uma interface Kanban completa para gestão de leads q
 | Coleta de Dados | Roxo | Coletando informações |
 | Captação Formalizada | Esmeralda | Dados no cadastro |
 | Agendamentos | Laranja | Agendamentos de fotos/visitas |
+| Lead | Ciano | Possíveis compradores interessados |
 
-**Busca por Telefone (Normalizada):**
+**Filtros do Pipeline:**
 
-O Pipeline possui busca inteligente que normaliza telefones para encontrar leads independente do formato:
+O Pipeline possui filtros avançados para encontrar cards rapidamente:
 
+1. **Busca por Telefone (Normalizada):**
 ```typescript
 // Função de normalização - remove todos os caracteres não numéricos
 const normalizePhone = (phone: string): string => {
@@ -75,14 +79,41 @@ const normalizePhone = (phone: string): string => {
 // - "947081611"
 ```
 
-A busca também funciona por nome do lead, permitindo encontrar cards rapidamente em qualquer estágio do pipeline.
+2. **Filtro por Instância/Captador:**
+   - Dropdown com todas as instâncias cadastradas
+   - Permite filtrar cards de uma instância específica
+   - Mostra contadores atualizados por estágio
 
 **Funcionalidades:**
 - Drag-and-drop para mover cards entre estágios
 - Busca por telefone ou nome (normalização automática)
+- Filtro por instância/captador
 - Contador de cards filtrados por estágio
 - Observações por card
 - Histórico de movimentações
+
+### Central de Captadores - Funcionalidades
+
+O módulo Captadores gerencia as instâncias WhatsApp com campos adicionais:
+
+**Campos da Instância:**
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| Nome Instância | Texto | Nome identificador da instância |
+| Nome Captador | Texto | Nome da pessoa responsável |
+| Instância (ID) | Texto | ID único da instância WhatsApp |
+| Token | Senha | Token de autenticação da API |
+| Telefone | Texto | Número vinculado à instância |
+| Origem | Texto | Origem/fonte da instância (texto livre) |
+| Status Instância | Seleção | Normal, Banimento ou Restrição |
+| Ativo | Toggle | Se a instância está ativa |
+
+**Status da Instância:**
+| Status | Cor | Ícone | Descrição |
+|--------|-----|-------|-----------|
+| Normal | Verde | CheckCircle | Instância funcionando normalmente |
+| Banimento | Vermelho | Ban | Instância banida pelo WhatsApp |
+| Restrição | Amarelo | AlertTriangle | Instância com restrições |
 
 ---
 
@@ -428,6 +459,8 @@ Gerencia instâncias WhatsApp conectadas ao sistema.
 | `ativo` | boolean | NULL | `true` | Instância ativa |
 | `telefone_cadastrado` | varchar | NULL | - | Número vinculado |
 | `id_usuario` | uuid | NULL | - | FK → leadflow_usuarios |
+| `origem` | text | NULL | - | Origem/fonte da instância |
+| `status_instancia` | status_instancia | NULL | `'normal'` | Status: normal, banimento, restricao |
 | `created_at` | timestamptz | NULL | `now()` | |
 | `updated_at` | timestamptz | NULL | `now()` | |
 
@@ -640,13 +673,21 @@ CREATE TYPE leadflow_status_envio AS ENUM (
 
 -- Stages do pipeline/funil (ordem lógica do funil)
 CREATE TYPE stage_pipeline AS ENUM (
+  'perdido',              -- Lead perdido
   'acompanhamento',       -- Em acompanhamento inicial
+  'indicacao',            -- Indicação recebida
   'qualificado',          -- Lead qualificado
   'coleta_dados',         -- Coletando dados do imóvel
   'captacao_formalizada', -- Captação formalizada
   'agendamento',          -- Visita agendada
-  'indicacao',            -- Indicação recebida
-  'perdido'               -- Lead perdido
+  'lead'                  -- Possíveis compradores
+);
+
+-- Status da instância WhatsApp
+CREATE TYPE status_instancia AS ENUM (
+  'normal',     -- Funcionando normalmente
+  'banimento',  -- Banida pelo WhatsApp
+  'restricao'   -- Com restrições
 );
 ```
 
@@ -874,6 +915,8 @@ erDiagram
         boolean ativo
         varchar telefone_cadastrado
         uuid id_usuario FK
+        text origem
+        enum status_instancia
         timestamptz created_at
         timestamptz updated_at
     }
@@ -1178,7 +1221,43 @@ VITE_N8N_WEBHOOK_SECRET=sua_chave_secreta_aqui
 
 ---
 
-## 10. Diagramas de Arquitetura
+## 10. Deploy com EasyPanel
+
+O LeadFlow Pro é deployado usando **EasyPanel**, uma plataforma PaaS que simplifica o gerenciamento de aplicações.
+
+### Configuração no EasyPanel
+
+1. **Criar novo App** no painel do EasyPanel
+2. **Conectar repositório** GitHub
+3. **Configurar Build:**
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+   - Node Version: 18+
+
+4. **Variáveis de Ambiente:**
+   - Adicionar todas as variáveis listadas na seção anterior
+   - Marcar como "Build Time" as variáveis `VITE_*`
+
+5. **Domínio:**
+   - Configurar domínio personalizado ou usar subdomínio do EasyPanel
+   - SSL automático via Let's Encrypt
+
+### Comandos Úteis
+
+```bash
+# Build local para teste
+npm run build
+
+# Preview do build
+npm run preview
+
+# Verificar tipos
+npm run typecheck
+```
+
+---
+
+## 11. Diagramas de Arquitetura
 
 ### Visão Macro do Sistema
 
@@ -1207,6 +1286,12 @@ flowchart TB
         VALID[API Validação]
     end
 
+    subgraph Deploy["Deploy (EasyPanel)"]
+        EP[EasyPanel PaaS]
+        SSL[SSL/TLS]
+        CDN[CDN]
+    end
+
     UI --> RQ
     RQ <--> PG
     UI --> WH
@@ -1217,11 +1302,13 @@ flowchart TB
     WF --> WA
     VAL --> VALID
     RT --> RQ
+    EP --> UI
 
     style Frontend fill:#e1f5fe
     style Backend fill:#fff3e0
     style Database fill:#e8f5e9
     style External fill:#fce4ec
+    style Deploy fill:#f3e5f5
 ```
 
 ### Fluxo Completo de Campanha
@@ -1258,7 +1345,7 @@ flowchart LR
 
 ---
 
-## 11. Melhorias Recomendadas
+## 12. Melhorias Recomendadas
 
 ### 🔴 Crítico - Segurança
 
@@ -1483,7 +1570,30 @@ npm run test        # Executa uma vez
 npm run test:watch  # Watch mode
 ```
 
+### Migrações Pendentes
+
+Execute no Supabase SQL Editor:
+
+```sql
+-- Migração: Adicionar campos origem e status_instancia aos captadores
+ALTER TABLE leadflow_captadores
+ADD COLUMN IF NOT EXISTS origem text;
+
+DO $$ BEGIN
+  CREATE TYPE status_instancia AS ENUM ('normal', 'banimento', 'restricao');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+ALTER TABLE leadflow_captadores
+ADD COLUMN IF NOT EXISTS status_instancia status_instancia DEFAULT 'normal';
+
+-- Migração: Adicionar estágio 'lead' ao pipeline
+ALTER TYPE stage_pipeline ADD VALUE IF NOT EXISTS 'lead';
+```
+
 ---
 
 > **Documento gerado automaticamente**
-> Para atualizações, execute a análise novamente ou contribua diretamente no repositório.
+> **Versão:** 3.0.0
+> **Data:** 06 de Fevereiro de 2026

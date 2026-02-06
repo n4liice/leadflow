@@ -8,6 +8,7 @@ import {
   StagePipeline,
   PipelineCard,
 } from "@/hooks/usePipeline";
+import { useCaptadores } from "@/hooks/useCaptadores";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Card,
@@ -63,6 +64,7 @@ const normalizePhone = (phone: string): string => {
 export default function PipelinePage() {
   const { isAdmin } = useAuth();
   const { cardsByStage, isLoading, totalCards } = usePipelineByStage();
+  const { data: captadores } = useCaptadores();
   const moveCard = useMoveCard();
   const updateNotes = useUpdateCardNotes();
 
@@ -70,30 +72,46 @@ export default function PipelinePage() {
   const [notes, setNotes] = useState("");
   const [draggedCard, setDraggedCard] = useState<PipelineCard | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [captadorFilter, setCaptadorFilter] = useState<string>("all");
 
-  // Filtra cards por telefone ou nome (normaliza telefone para busca)
+  // Verifica se há algum filtro ativo
+  const hasActiveFilter = searchTerm.trim() || (captadorFilter && captadorFilter !== "all");
+
+  // Filtra cards por captador, telefone ou nome
   const filterCards = (cards: PipelineCard[] | undefined) => {
-    if (!cards || !searchTerm.trim()) return cards || [];
+    if (!cards) return [];
 
-    const normalizedSearch = normalizePhone(searchTerm);
-    const searchLower = searchTerm.toLowerCase().trim();
+    let filtered = cards;
 
-    return cards.filter((card) => {
-      // Busca por telefone normalizado (remove formatação)
-      const normalizedCardPhone = normalizePhone(card.telefone);
-      if (normalizedSearch && normalizedCardPhone.includes(normalizedSearch)) {
-        return true;
-      }
-      // Busca por nome
-      if (card.nome.toLowerCase().includes(searchLower)) {
-        return true;
-      }
-      return false;
-    });
+    // Filtro por captador/instância
+    if (captadorFilter && captadorFilter !== "all") {
+      filtered = filtered.filter(card => card.id_captador === captadorFilter);
+    }
+
+    // Filtro por busca (texto)
+    if (searchTerm.trim()) {
+      const normalizedSearch = normalizePhone(searchTerm);
+      const searchLower = searchTerm.toLowerCase().trim();
+
+      filtered = filtered.filter((card) => {
+        // Busca por telefone normalizado (remove formatação)
+        const normalizedCardPhone = normalizePhone(card.telefone);
+        if (normalizedSearch && normalizedCardPhone.includes(normalizedSearch)) {
+          return true;
+        }
+        // Busca por nome
+        if (card.nome.toLowerCase().includes(searchLower)) {
+          return true;
+        }
+        return false;
+      });
+    }
+
+    return filtered;
   };
 
   // Conta total de cards filtrados
-  const filteredTotalCards = searchTerm.trim()
+  const filteredTotalCards = hasActiveFilter
     ? STAGES_ORDER.reduce((acc, stage) => acc + filterCards(cardsByStage[stage]).length, 0)
     : totalCards;
 
@@ -164,20 +182,37 @@ export default function PipelinePage() {
           <div className="flex items-center gap-2">
             <KanbanSquare className="w-5 h-5 text-primary" />
             <span className="text-sm font-medium">
-              {searchTerm.trim() ? `${filteredTotalCards} de ${totalCards}` : totalCards} cards
+              {hasActiveFilter ? `${filteredTotalCards} de ${totalCards}` : totalCards} cards
             </span>
           </div>
         </div>
 
-        {/* Barra de busca */}
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por telefone ou nome..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
+        {/* Barra de busca e filtros */}
+        <div className="flex flex-wrap gap-4">
+          <div className="relative flex-1 min-w-[200px] max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por telefone ou nome..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          {/* Filtro por Instância */}
+          <Select value={captadorFilter} onValueChange={setCaptadorFilter}>
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Filtrar por Instância" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as Instâncias</SelectItem>
+              {captadores?.map(cap => (
+                <SelectItem key={cap.id} value={cap.id}>
+                  {cap.nome_captador || cap.instancia}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -196,7 +231,7 @@ export default function PipelinePage() {
             >
               <span>{STAGE_CONFIG[stage].label}</span>
               <span className="bg-white/20 px-1.5 py-0.5 rounded-full">
-                {searchTerm.trim() ? `${filteredCount}/${totalCount}` : totalCount}
+                {hasActiveFilter ? `${filteredCount}/${totalCount}` : totalCount}
               </span>
             </div>
           );
@@ -218,14 +253,14 @@ export default function PipelinePage() {
             Quando um lead responder, ele aparecerá aqui automaticamente
           </p>
         </div>
-      ) : searchTerm.trim() && filteredTotalCards === 0 ? (
+      ) : hasActiveFilter && filteredTotalCards === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
           <Search className="w-16 h-16 text-muted-foreground/50" />
           <p className="text-muted-foreground">
-            Nenhum resultado para "{searchTerm}"
+            Nenhum resultado para os filtros aplicados
           </p>
           <p className="text-xs text-muted-foreground/70">
-            Tente buscar por outro telefone ou nome
+            Tente alterar os filtros ou buscar por outro termo
           </p>
         </div>
       ) : (
@@ -252,7 +287,7 @@ export default function PipelinePage() {
                 <div className="flex items-center justify-between text-white">
                   <h3 className="font-medium">{STAGE_CONFIG[stage].label}</h3>
                   <Badge variant="secondary" className="bg-white/20 text-white border-0">
-                    {searchTerm.trim()
+                    {hasActiveFilter
                       ? `${filterCards(cardsByStage[stage]).length}/${cardsByStage[stage]?.length || 0}`
                       : cardsByStage[stage]?.length || 0}
                   </Badge>

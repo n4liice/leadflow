@@ -157,6 +157,8 @@ export type Database = {
           token: string | null
           updated_at: string
           id_usuario: string | null
+          origem: string | null
+          status_instancia: Database["public"]["Enums"]["status_instancia"] | null
         }
         Insert: {
           created_at?: string
@@ -169,6 +171,8 @@ export type Database = {
           token?: string | null
           updated_at?: string
           id_usuario?: string | null
+          origem?: string | null
+          status_instancia?: Database["public"]["Enums"]["status_instancia"] | null
         }
         Update: {
           created_at?: string
@@ -181,6 +185,8 @@ export type Database = {
           token?: string | null
           updated_at?: string
           id_usuario?: string | null
+          origem?: string | null
+          status_instancia?: Database["public"]["Enums"]["status_instancia"] | null
         }
         Relationships: [
           {
@@ -464,7 +470,8 @@ export type Database = {
       status_envio: "pendente" | "enviando" | "enviado" | "erro"
       status_validacao: "pendente" | "validado" | "invalido"
       leadflow_status_validacao: "pendente" | "validado" | "invalido"
-      stage_pipeline: "perdido" | "acompanhamento" | "indicacao" | "qualificado" | "coleta_dados" | "captacao_formalizada" | "agendamento"
+      stage_pipeline: "perdido" | "acompanhamento" | "indicacao" | "qualificado" | "coleta_dados" | "captacao_formalizada" | "agendamento" | "lead"
+      status_instancia: "normal" | "banimento" | "restricao"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -596,7 +603,8 @@ export const Constants = {
       status_envio: ["pendente", "enviando", "enviado", "erro"],
       status_validacao: ["pendente", "validado", "invalido"],
       leadflow_status_validacao: ["pendente", "validado", "invalido"],
-      stage_pipeline: ["perdido", "acompanhamento", "indicacao", "qualificado", "coleta_dados", "captacao_formalizada", "agendamento"],
+      stage_pipeline: ["perdido", "acompanhamento", "indicacao", "qualificado", "coleta_dados", "captacao_formalizada", "agendamento", "lead"],
+      status_instancia: ["normal", "banimento", "restricao"],
     },
   },
 } as const

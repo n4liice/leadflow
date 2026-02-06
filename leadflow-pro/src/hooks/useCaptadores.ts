@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+export type StatusInstancia = "normal" | "banimento" | "restricao";
+
 export interface Captador {
   id: string;
   nome_instancia: string;
@@ -11,6 +13,8 @@ export interface Captador {
   ativo: boolean;
   telefone_cadastrado: string | null;
   id_usuario: string | null;
+  origem: string | null;
+  status_instancia: StatusInstancia | null;
   created_at: string;
   updated_at: string;
 }

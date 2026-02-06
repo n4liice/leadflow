@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useCaptadores, useCreateCaptador, useUpdateCaptador, useDeleteCaptador } from "@/hooks/useCaptadores";
+import { useCaptadores, useCreateCaptador, useUpdateCaptador, useDeleteCaptador, StatusInstancia } from "@/hooks/useCaptadores";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,9 +19,52 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Radio, Smartphone, Loader2, Trash2, Eye, EyeOff } from "lucide-react";
+import { Plus, Radio, Smartphone, Loader2, Trash2, Eye, EyeOff, CheckCircle2, Ban, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+// Configuração de labels, cores e ícones para status da instância
+const STATUS_INSTANCIA_CONFIG: Record<StatusInstancia, {
+  label: string;
+  icon: typeof CheckCircle2;
+  dotColor: string;
+  textColor: string;
+  bgColor: string;
+  hoverBg: string;
+}> = {
+  normal: {
+    label: "Normal",
+    icon: CheckCircle2,
+    dotColor: "bg-emerald-500",
+    textColor: "text-emerald-500",
+    bgColor: "bg-emerald-500/10",
+    hoverBg: "hover:bg-emerald-500/20",
+  },
+  banimento: {
+    label: "Banimento",
+    icon: Ban,
+    dotColor: "bg-red-500",
+    textColor: "text-red-500",
+    bgColor: "bg-red-500/10",
+    hoverBg: "hover:bg-red-500/20",
+  },
+  restricao: {
+    label: "Restrição",
+    icon: AlertTriangle,
+    dotColor: "bg-amber-500",
+    textColor: "text-amber-500",
+    bgColor: "bg-amber-500/10",
+    hoverBg: "hover:bg-amber-500/20",
+  },
+};
 
 export default function CaptadoresPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -32,6 +75,8 @@ export default function CaptadoresPage() {
     instancia: "",
     token: "",
     telefone_cadastrado: "",
+    origem: "",
+    status_instancia: "normal" as StatusInstancia,
     ativo: true,
   });
 
@@ -50,6 +95,8 @@ export default function CaptadoresPage() {
       ...newCaptador,
       token: newCaptador.token || null,
       telefone_cadastrado: newCaptador.telefone_cadastrado || null,
+      origem: newCaptador.origem || null,
+      status_instancia: newCaptador.status_instancia,
     });
     setIsDialogOpen(false);
     setNewCaptador({
@@ -58,6 +105,8 @@ export default function CaptadoresPage() {
       instancia: "",
       token: "",
       telefone_cadastrado: "",
+      origem: "",
+      status_instancia: "normal",
       ativo: true,
     });
   };
@@ -141,6 +190,50 @@ export default function CaptadoresPage() {
                   onChange={(e) => setNewCaptador(prev => ({ ...prev, telefone_cadastrado: e.target.value }))}
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Origem</Label>
+                <Input
+                  placeholder="Ex: Condomínio Aurora, Campanha Janeiro..."
+                  value={newCaptador.origem}
+                  onChange={(e) => setNewCaptador(prev => ({ ...prev, origem: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Status da Instância</Label>
+                <Select
+                  value={newCaptador.status_instancia}
+                  onValueChange={(value: StatusInstancia) => setNewCaptador(prev => ({ ...prev, status_instancia: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue>
+                      {(() => {
+                        const config = STATUS_INSTANCIA_CONFIG[newCaptador.status_instancia];
+                        const Icon = config.icon;
+                        return (
+                          <div className="flex items-center gap-2">
+                            <Icon className={cn("w-4 h-4", config.textColor)} />
+                            <span className={config.textColor}>{config.label}</span>
+                          </div>
+                        );
+                      })()}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(STATUS_INSTANCIA_CONFIG) as StatusInstancia[]).map((key) => {
+                      const config = STATUS_INSTANCIA_CONFIG[key];
+                      const Icon = config.icon;
+                      return (
+                        <SelectItem key={key} value={key} className={config.hoverBg}>
+                          <div className="flex items-center gap-2">
+                            <Icon className={cn("w-4 h-4", config.textColor)} />
+                            <span className={config.textColor}>{config.label}</span>
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex items-center justify-between">
                 <Label>Ativo</Label>
                 <Switch
@@ -191,6 +284,8 @@ export default function CaptadoresPage() {
               <TableHead>Instância</TableHead>
               <TableHead>Token</TableHead>
               <TableHead>Telefone</TableHead>
+              <TableHead>Origem</TableHead>
+              <TableHead>Status Instância</TableHead>
               <TableHead>Ativo</TableHead>
               <TableHead>Criado em</TableHead>
               <TableHead>Ações</TableHead>
@@ -199,13 +294,13 @@ export default function CaptadoresPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
                   Carregando captadores...
                 </TableCell>
               </TableRow>
             ) : captadores?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12">
+                <TableCell colSpan={10} className="text-center py-12">
                   <div className="flex flex-col items-center gap-3">
                     <Radio className="w-12 h-12 text-muted-foreground/50" />
                     <p className="text-muted-foreground">Nenhum captador cadastrado</p>
@@ -245,6 +340,65 @@ export default function CaptadoresPage() {
                   </TableCell>
                   <TableCell className="font-mono text-sm">
                     {captador.telefone_cadastrado || "-"}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {captador.origem || "-"}
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const status = captador.status_instancia || "normal";
+                      const config = STATUS_INSTANCIA_CONFIG[status];
+                      const Icon = config.icon;
+                      return (
+                        <Select
+                          value={status}
+                          onValueChange={(value: StatusInstancia) => {
+                            updateCaptador.mutate({ id: captador.id, status_instancia: value });
+                          }}
+                        >
+                          <SelectTrigger
+                            className={cn(
+                              "w-[130px] h-8 border-0 gap-2",
+                              config.bgColor,
+                              config.hoverBg,
+                              "focus:ring-1 focus:ring-offset-0"
+                            )}
+                          >
+                            <SelectValue>
+                              <div className="flex items-center gap-2">
+                                <Icon className={cn("w-3.5 h-3.5", config.textColor)} />
+                                <span className={cn("text-xs font-medium", config.textColor)}>
+                                  {config.label}
+                                </span>
+                              </div>
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent align="center" className="min-w-[140px]">
+                            {(Object.keys(STATUS_INSTANCIA_CONFIG) as StatusInstancia[]).map((key) => {
+                              const itemConfig = STATUS_INSTANCIA_CONFIG[key];
+                              const ItemIcon = itemConfig.icon;
+                              return (
+                                <SelectItem
+                                  key={key}
+                                  value={key}
+                                  className={cn(
+                                    "cursor-pointer",
+                                    itemConfig.hoverBg
+                                  )}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <ItemIcon className={cn("w-3.5 h-3.5", itemConfig.textColor)} />
+                                    <span className={cn("text-sm", itemConfig.textColor)}>
+                                      {itemConfig.label}
+                                    </span>
+                                  </div>
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell>
                     <Switch
